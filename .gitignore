@@ -1,0 +1,33 @@
+# Project-wide gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backend
+backend/__pycache__/
+backend/*.pyc
+backend/.env*
+backend/env/
+backend/venv/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env*
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Files folder (if needed)
+files/
+
+# General
+*.log
