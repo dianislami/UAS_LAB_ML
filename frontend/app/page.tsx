@@ -3,12 +3,24 @@
 import { useState, useCallback, useEffect } from 'react';
 import ResultCard from '@/components/ResultCard';
 
+interface Prediction {
+  class: string;
+  prob: number;
+}
+
+interface ResultData {
+  top_prediction: string;
+  predictions: Prediction[];
+  ai_insight: string;
+}
+
 interface HistoryItem {
   id: string;
   species: string;
   confidence: number;
   timestamp: number;
   preview: string;
+  result: ResultData;
 }
 
 const SAMPLE_IMAGES = [
@@ -20,20 +32,20 @@ export default function Home() {
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ResultData | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
-  // Initialize theme and history from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
     if (savedTheme) {
       setTheme(savedTheme);
       document.documentElement.setAttribute('data-theme', savedTheme);
     }
-    
+
     const savedHistory = localStorage.getItem('prediction_history');
     if (savedHistory) {
       try {
@@ -44,7 +56,6 @@ export default function Home() {
     }
   }, []);
 
-  // Save theme to localStorage
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
@@ -57,6 +68,7 @@ export default function Home() {
     setImage(file);
     setPreview(URL.createObjectURL(file));
     setResult(null);
+    setActiveHistoryId(null);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,6 +85,7 @@ export default function Home() {
     if (!image) return;
     setLoading(true);
     setResult(null);
+    setActiveHistoryId(null);
     const formData = new FormData();
     formData.append('file', image);
     try {
@@ -80,20 +93,20 @@ export default function Home() {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Server error');
-      
+      const data: ResultData = await response.json();
+      if (!response.ok) throw new Error((data as any).detail || 'Server error');
+
       setResult(data);
-      
-      // Add to history
+
       const newHistoryItem: HistoryItem = {
         id: Date.now().toString(),
         species: data.top_prediction,
         confidence: data.predictions[0]?.prob || 0,
         timestamp: Date.now(),
         preview: preview || '',
+        result: data, // simpan full result
       };
-      
+
       const updatedHistory = [newHistoryItem, ...history].slice(0, 10);
       setHistory(updatedHistory);
       localStorage.setItem('prediction_history', JSON.stringify(updatedHistory));
@@ -104,6 +117,13 @@ export default function Home() {
     }
   };
 
+  const handleHistoryClick = (item: HistoryItem) => {
+    setResult(item.result);
+    setPreview(item.preview);
+    setImage(null);
+    setActiveHistoryId(item.id);
+  };
+
   const handleSampleImage = async (imagePath: string) => {
     try {
       const response = await fetch(imagePath);
@@ -112,8 +132,19 @@ export default function Home() {
       setImage(file);
       setPreview(imagePath);
       setResult(null);
+      setActiveHistoryId(null);
     } catch (error) {
       console.error('Failed to load sample image:', error);
+    }
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('prediction_history');
+    setShowHistory(false);
+    if (activeHistoryId) {
+      setResult(null);
+      setActiveHistoryId(null);
     }
   };
 
@@ -137,7 +168,7 @@ export default function Home() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* Header / Navbar */}
+      {/* Header */}
       <header style={{
         padding: '1.25rem 3rem',
         display: 'flex',
@@ -179,7 +210,7 @@ export default function Home() {
               AI ONLINE
             </span>
           </div>
-          
+
           <button
             onClick={toggleTheme}
             style={{
@@ -211,7 +242,7 @@ export default function Home() {
         overflow: 'hidden',
       }}>
 
-        {/* LEFT PANEL — Upload */}
+        {/* LEFT PANEL */}
         <aside style={{
           borderRight: '1px solid var(--border)',
           background: 'var(--bg-surface)',
@@ -302,7 +333,7 @@ export default function Home() {
 
           {preview && (
             <p style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-0.75rem' }}>
-              Klik gambar untuk mengganti foto
+              {activeHistoryId ? 'Ini adalah foto dari history' : 'Klik gambar untuk mengganti foto'}
             </p>
           )}
 
@@ -322,7 +353,7 @@ export default function Home() {
                 <div style={{
                   width: '30px', height: '30px', borderRadius: '8px',
                   background: 'var(--accent-glow)',
-                border: '1px solid rgba(0,112,243,0.2)',
+                  border: '1px solid rgba(0,112,243,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
@@ -409,7 +440,7 @@ export default function Home() {
             }}>
               Sample Images
             </p>
-            
+
             <div style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
@@ -444,19 +475,13 @@ export default function Home() {
                   <img
                     src={sample.path}
                     alt={sample.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                   <div style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
+                    bottom: 0, left: 0, right: 0,
                     background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
-                    padding: '0.5rem 0.5rem',
+                    padding: '0.5rem',
                     color: 'white',
                     fontSize: '0.65rem',
                     fontWeight: 500,
@@ -469,66 +494,134 @@ export default function Home() {
             </div>
           </div>
 
-          {/* History Toggle */}
+          {/* History */}
           {history.length > 0 && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
-              <button
-                onClick={() => setShowHistory(!showHistory)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border)',
-                  background: showHistory ? 'var(--accent-glow)' : 'var(--bg-elevated)',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {showHistory ? '✕ Tutup' : `📋 History (${history.length})`}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: showHistory ? 'var(--accent-glow)' : 'var(--bg-elevated)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    transition: 'all 0.2s ease',
+                    textAlign: 'left',
+                  }}
+                >
+                  {showHistory ? '✕ Tutup History' : `History (${history.length})`}
+                </button>
+
+                {showHistory && (
+                  <button
+                    onClick={clearHistory}
+                    title="Hapus semua history"
+                    style={{
+                      marginLeft: '0.5rem',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-elevated)',
+                      color: '#f87171',
+                      cursor: 'pointer',
+                      fontSize: '0.72rem',
+                      fontWeight: 500,
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    🗑
+                  </button>
+                )}
+              </div>
 
               {showHistory && (
                 <div style={{
-                  marginTop: '0.75rem',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.5rem',
-                  maxHeight: '250px',
+                  maxHeight: '280px',
                   overflowY: 'auto',
                 }}>
-                  {history.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        padding: '0.5rem',
-                        borderRadius: '8px',
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--border)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        fontSize: '0.7rem',
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-overlay)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-elevated)';
-                      }}
-                    >
-                      <p style={{ color: 'var(--text-primary)', fontWeight: 500, marginBottom: '0.25rem', textTransform: 'capitalize' }}>
-                        {item.species.replace(/_/g, ' ')}
-                      </p>
-                      <p style={{ color: 'var(--accent)', marginBottom: '0.25rem' }}>
-                        {(item.confidence * 100).toFixed(0)}% confidence
-                      </p>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>
-                        {new Date(item.timestamp).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
+                  {history.map((item) => {
+                    const isActive = activeHistoryId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => handleHistoryClick(item)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.6rem 0.75rem',
+                          borderRadius: '10px',
+                          background: isActive ? 'var(--accent-glow)' : 'var(--bg-elevated)',
+                          border: `1px solid ${isActive ? 'rgba(0,112,243,0.4)' : 'var(--border)'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-overlay)';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-elevated)';
+                        }}
+                      >
+                        {/* Thumbnail */}
+                        {item.preview ? (
+                          <img
+                            src={item.preview}
+                            alt={item.species}
+                            style={{
+                              width: '38px', height: '38px',
+                              borderRadius: '7px',
+                              objectFit: 'cover',
+                              flexShrink: 0,
+                              border: '1px solid var(--border)',
+                            }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: '38px', height: '38px',
+                            borderRadius: '7px',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border)',
+                            flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '1rem',
+                          }}>🪲</div>
+                        )}
+
+                        {/* Info */}
+                        <div style={{ overflow: 'hidden', flex: 1 }}>
+                          <p style={{
+                            fontSize: '0.73rem',
+                            color: isActive ? 'var(--accent)' : 'var(--text-primary)',
+                            fontWeight: 500,
+                            textTransform: 'capitalize',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {item.species.replace(/_/g, ' ')}
+                          </p>
+                          <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                            {(item.confidence * 100).toFixed(0)}% · {new Date(item.timestamp).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+
+                        {/* Arrow indicator */}
+                        {isActive && (
+                          <span style={{ color: 'var(--accent)', fontSize: '0.7rem', flexShrink: 0 }}>●</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -584,7 +677,7 @@ export default function Home() {
                   Hasil identifikasi akan muncul di sini
                 </p>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Upload foto serangga dan tekan Analisis
+                  Upload foto serangga dan tekan Analisis, atau pilih dari History
                 </p>
               </div>
             </div>
@@ -619,7 +712,27 @@ export default function Home() {
           )}
 
           {/* Result */}
-          {result && !loading && <ResultCard result={result} />}
+          {result && !loading && (
+            <>
+              {activeHistoryId && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  marginBottom: '1.25rem',
+                  padding: '0.6rem 1rem',
+                  background: 'var(--accent-glow)',
+                  border: '1px solid rgba(0,112,243,0.2)',
+                  borderRadius: '10px',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                }}>
+                  <span>Menampilkan hasil dari history · {new Date(history.find(h => h.id === activeHistoryId)?.timestamp || 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              )}
+              <ResultCard result={result} />
+            </>
+          )}
         </main>
       </div>
     </div>

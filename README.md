@@ -61,10 +61,10 @@ Aplikasi web full-stack yang menggabungkan **Computer Vision** (PyTorch) untuk k
 ```bash
 # Jika menggunakan git
 git clone <repository-url>
-cd Final-ML-Lab-2026
+cd UAS-LAB-ML
 
 # Jika sudah ada folder, navigasi ke dalamnya
-cd Final-ML-Lab-2026
+cd UAS-LAB-ML
 ```
 
 ### 2. Setup Backend
@@ -185,7 +185,7 @@ npm run dev
 ## Struktur Proyek
 
 ```
-Final-ML-Lab-2026/
+UAS-LAB-ML/
 │
 ├── backend/                         # FastAPI Backend
 │   ├── artifacts/
