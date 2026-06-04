@@ -27,7 +27,7 @@ frontend/yarn-debug.log*
 frontend/yarn-error.log*
 
 # Files folder (if needed)
-files/
+files/.gitkeep
 
 # General
 *.log
