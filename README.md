@@ -1,4 +1,4 @@
-# LensArthropoda - Smart Insect Identifier with AI Insights
+# Smart Insect Identifier with AI Insights
 
 Aplikasi web full-stack yang menggabungkan **Computer Vision** (PyTorch) untuk klasifikasi spesies serangga dengan **Generative AI** (Google Gemini 2.5 Flash) untuk memberikan wawasan mendalam seperti taksonomi, habitat, peran ekologis, dan fakta unik secara real-time.
 
